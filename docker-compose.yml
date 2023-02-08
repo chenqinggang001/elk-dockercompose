@@ -1,0 +1,57 @@
+version: '3'
+services:
+  elasticsearch:
+    image: elasticsearch:${STACK_VERSION}
+    container_name: elasticsearch
+    restart: always
+    environment:
+      - network.host=${SERVER_HOST}
+      - xpack.security.enabled=true
+      - xpack.security.authc.api_key.enabled=true
+      - "cluster.name=elasticsearch" # 集群名称
+      - "discovery.type=single-node" # 发现类型,单节点
+      - "ES_JAVA_OPTS=-Xms2048m -Xmx4096m" # 设置JVM堆大小
+      - ELASTIC_PASSWORD=${ELASTIC_PASSWORD}
+      - TZ=Asia/Shanghai
+    volumes:
+      - /data/elk/elasticsearch/plugins:/usr/share/elasticsearch/plugins
+      - /data/elk/elasticsearch/data:/usr/share/elasticsearch/data
+    ports:
+      - ${ES_PORT}:9200
+  kibana:
+    image: kibana:${STACK_VERSION}
+    container_name: kibana
+    restart: always
+    links:
+      - elasticsearch:es 
+    depends_on:
+      - elasticsearch
+    environment:
+      - I18N_LOCALE="zh-CN"
+      - ELASTICSEARCH_HOSTS=http://es:9200
+      - TZ=Asia/Shanghai
+      - monitoring.ui.container.elasticsearch.enabled=true
+      - xpack.encryptedSavedObjects.encryptionKey=51F633E4B4A5CC5FC7BF04F96132F154
+      - server.publicBaseUrl=http://kibana:5601
+      - ELASTICSEARCH_USERNAME=elastic
+      - ELASTICSEARCH_PASSWORD=${KIBANA_PASSWORD}
+      - server.host=${SERVER_HOST}
+      - server.shutdownTimeout="5s"
+    ports:
+      - ${KIBANA_PORT}:5601
+  elastalert:
+    image: jertel/elastalert2:2.9.0
+    links:
+      - elasticsearch:es 
+    depends_on:
+      - elasticsearch
+      - kibana
+    container_name: elastalert
+    restart: always
+    volumes:
+      - /data/elk/alert/elastalert.yaml:/opt/elastalert/config.yaml
+      - /data/elk/alert/email_auth.yaml:/opt/elastalert/email_auth.yaml
+      - /data/elk/alert/rules:/opt/elastalert/rules
+    environment:
+      - TZ=Asia/Shanghai
+    command: --verbose
